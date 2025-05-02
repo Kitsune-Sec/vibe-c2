@@ -93,6 +93,20 @@ cd go-beacons && ./build.sh --server-url http://localhost:8080 --os [windows|lin
 --silent     Enable silent mode - no console output (enabled by default)
 ```
 
+### 4. Running Beacons
+
+When executing beacons, you **must** specify the server URL if it's different from the default:
+
+```bash
+# On Linux/macOS
+./vibe_beacon_linux_amd64 -server http://your-server-ip:8080
+
+# On Windows
+.\vibe_beacon_windows_amd64.exe -server http://your-server-ip:8080
+```
+
+> **Note:** If you don't specify the `-server` flag, the beacon will attempt to connect to `http://localhost:8080` by default
+
 The built beacons will be available in `target/go-beacons/` directory.
 
 ## Command Reference

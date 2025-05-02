@@ -70,7 +70,7 @@ build_for() {
   
   echo -e "${BLUE}[*] Building for ${os}/${arch}...${NC}"
   
-  GOOS=$os GOARCH=$arch go build -ldflags="-s -w -X 'main.serverURL=${SERVER_URL}'" -o "../target/go-beacons/vibe_beacon_${os}_${arch}${extension}" .
+  GOOS=$os GOARCH=$arch go build -ldflags="-s -w -X 'main.defaultServerURL=${SERVER_URL}'" -o "../target/go-beacons/vibe_beacon_${os}_${arch}${extension}" .
   
   if [ $? -eq 0 ]; then
     echo -e "${GREEN}[+] Successfully built: ../target/go-beacons/vibe_beacon_${os}_${arch}${extension}${NC}"
