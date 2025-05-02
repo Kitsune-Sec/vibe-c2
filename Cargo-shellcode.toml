@@ -1,0 +1,18 @@
+[package]
+name = "beacon-shellcode"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "beacon_shellcode"
+crate-type = ["staticlib", "cdylib"]
+path = "src/shellcode_beacon.rs"
+
+[profile.release]
+opt-level = "z"     # Optimize for size
+lto = true          # Enable link-time optimization
+codegen-units = 1   # Use a single codegen unit
+panic = "abort"     # Abort on panic
+strip = true        # Strip symbols
+
+[dependencies]
