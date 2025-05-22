@@ -279,12 +279,13 @@ async fn list_beacons(server_url: &str) -> Result<()> {
         }
         
         println!("{}", "\n🔍 REGISTERED BEACONS".bright_blue().bold());
-        println!("{}", format!("{:<15} {:<20} {:<20} {:<15}", 
+        println!("{}", format!("{:<15} {:<20} {:<20} {:<15} {:<10}", 
             "ID".cyan().bold(), 
             "HOSTNAME".cyan().bold(), 
             "USERNAME".cyan().bold(), 
-            "LAST CHECK-IN".cyan().bold()));
-        println!("{}", "─".repeat(70).dimmed());
+            "LAST CHECK-IN".cyan().bold(),
+            "STATUS".cyan().bold()));
+        println!("{}", "─".repeat(80).dimmed());
         
         for beacon in beacons {
             let last_check_in = match beacon.last_check_in {
@@ -298,7 +299,7 @@ async fn list_beacons(server_url: &str) -> Result<()> {
                 None => "Never".to_string(),
             };
             
-            // If beacon is terminated, grey it out; otherwise highlight active beacons
+            // Format beacon display based on status: terminated, stale, or active
             if beacon.terminated {
                 println!(
                     "{:<15} {:<20} {:<20} {:<15} {}",
@@ -306,15 +307,27 @@ async fn list_beacons(server_url: &str) -> Result<()> {
                     beacon.hostname.dimmed(),
                     beacon.username.dimmed(),
                     last_check_in.dimmed(),
-                    "[TERMINATED]".red().dimmed()
+                    "TERMINATED".red().dimmed()
+                );
+            } else if beacon.stale {
+                // Show stale beacons with a warning color
+                println!(
+                    "{:<15} {:<20} {:<20} {:<15} {}",
+                    beacon.id.yellow(),
+                    beacon.hostname.yellow(),
+                    beacon.username.yellow(),
+                    last_check_in.yellow(),
+                    "STALE".yellow().bold()
                 );
             } else {
+                // Active beacons
                 println!(
-                    "{:<15} {:<20} {:<20} {:<15}",
+                    "{:<15} {:<20} {:<20} {:<15} {}",
                     beacon.id.bright_green().bold(),
                     beacon.hostname.bright_white(),
                     beacon.username.bright_white(),
-                    if last_check_in == "Never" { last_check_in.red() } else { last_check_in.normal() }
+                    if last_check_in == "Never" { last_check_in.red() } else { last_check_in.normal() },
+                    "ACTIVE".green().bold()
                 );
             }
         }
@@ -348,9 +361,13 @@ async fn show_beacon_info(server_url: &str, beacon_id: &str) -> Result<()> {
                                   beacon.os.bright_white());
             println!("{}{}", "  Sleep Time:    ".cyan(), 
                                   format!("{} seconds", beacon.sleep_time.as_secs()).yellow());
+            println!("{}{}", "  Jitter:        ".cyan(), 
+                                  format!("{}{}", beacon.jitter_percent, "%").yellow());
             println!("{}{}", "  Status:        ".cyan(), 
                                   if beacon.terminated {
                                       "TERMINATED".red().bold()
+                                  } else if beacon.stale {
+                                      "STALE".yellow().bold()
                                   } else {
                                       "ACTIVE".green().bold()
                                   });
@@ -493,10 +510,72 @@ async fn poll_for_responses(
                                         return;
                                     },
                                     CommandResult::FileData(data) => {
-                                        println!("{} {}", "📁 FILE DATA:".green().bold(), 
-                                                         format!("Received {} bytes", data.len()).bright_green());
-                                        println!("{}", "   In a complete implementation, this would be saved to disk.".dimmed());
-                                        println!("{}", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━".dimmed());
+                                        use std::fs;
+                                        use std::path::PathBuf;
+                                        use dirs::download_dir;
+                                        
+                                        // Extract file metadata from the CommandResult
+                                        let file_data = match data.get("FileData") {
+                                            Some(data) => data.as_str().unwrap_or_default(),
+                                            None => {
+                                                println!("{} {}", "⚠️ ERROR:".red().bold(), "Missing file data in response".bright_red());
+                                                return;
+                                            }
+                                        };
+                                        
+                                        let file_name = match data.get("FileName") {
+                                            Some(name) => name.as_str().unwrap_or(&task_id),
+                                            None => &task_id, // Fallback to task ID if filename not provided
+                                        };
+                                        
+                                        // Decode the base64 file data
+                                        let decoded_data = match base64::engine::general_purpose::STANDARD.decode(file_data) {
+                                            Ok(decoded) => decoded,
+                                            Err(e) => {
+                                                println!("{} {}", "⚠️ ERROR:".red().bold(), 
+                                                           format!("Failed to decode file data: {}", e).bright_red());
+                                                return;
+                                            }
+                                        };
+                                        
+                                        // Create the downloads directory if it doesn't exist
+                                        let download_path = match download_dir() {
+                                            Some(path) => path,
+                                            None => {
+                                                // Fallback to current directory if download dir not available
+                                                println!("{} {}", "⚠️ WARNING:".yellow().bold(), 
+                                                           "Could not determine downloads directory, using current directory".bright_yellow());
+                                                PathBuf::from(".")
+                                            }
+                                        };
+                                        
+                                        // Create a vibe-c2 subdirectory for downloads
+                                        let vibe_download_dir = download_path.join("vibe-c2-downloads");
+                                        if !vibe_download_dir.exists() {
+                                            if let Err(e) = fs::create_dir_all(&vibe_download_dir) {
+                                                println!("{} {}", "⚠️ ERROR:".red().bold(), 
+                                                           format!("Failed to create download directory: {}", e).bright_red());
+                                                return;
+                                            }
+                                        }
+                                        
+                                        // Create the full path to the output file
+                                        let output_file = vibe_download_dir.join(file_name);
+                                        
+                                        // Write the file
+                                        match fs::write(&output_file, &decoded_data) {
+                                            Ok(_) => {
+                                                println!("{} {}", "📁 FILE DOWNLOADED:".green().bold(), 
+                                                           format!("Saved {} bytes to {}", decoded_data.len(), output_file.display()).bright_green());
+                                            },
+                                            Err(e) => {
+                                                println!("{} {}", "⚠️ ERROR:".red().bold(), 
+                                                           format!("Failed to save file: {}", e).bright_red());
+                                                return;
+                                            }
+                                        };
+                                        
+                                        println!("{}", "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━".dimmed());
                                         
                                         // Signal to redisplay the prompt
                                         if let Some(sender) = &prompt_sender {
@@ -530,10 +609,49 @@ async fn poll_for_responses(
 /// Upload a file to a beacon
 async fn upload_file(server_url: &str, beacon_id: &str, local_path: &str, remote_path: &str) -> Result<()> {
     use std::fs;
+    use std::path::Path;
+    
+    // Verify the local file exists before attempting to read it
+    if !Path::new(local_path).exists() {
+        println!("{} {} {}", 
+            "⚠️ Error:".red().bold(), 
+            "Local file not found:".red(), 
+            local_path.bright_red());
+        return Err(anyhow!("Local file not found: {}", local_path));
+    }
+    
+    // Get file info for user feedback
+    let metadata = fs::metadata(local_path)?;
+    let file_size = metadata.len();
+    
+    println!("{} {} {}", 
+        "📤 Uploading:".bright_blue().bold(),
+        format!("'{}'", local_path).bright_white(),
+        format!("({} bytes)", file_size).bright_blue());
     
     // Read the local file
-    let data = fs::read(local_path)?;
-    let encoded = base64::engine::general_purpose::STANDARD.encode(data);
+    let data = match fs::read(local_path) {
+        Ok(data) => data,
+        Err(e) => {
+            println!("{} {} {}", 
+                "⚠️ Error:".red().bold(), 
+                "Failed to read file:".red(), 
+                e.to_string().bright_red());
+            return Err(anyhow!("Failed to read file: {}", e));
+        }
+    };
+    
+    println!("{} {} {}", 
+        "⏳ Encoding".yellow(),
+        format!("'{}'", local_path).yellow(),
+        "for transmission...".yellow());
+    
+    let encoded = base64::engine::general_purpose::STANDARD.encode(&data);
+    
+    println!("{} {} {}", 
+        "🔄 Sending to:".bright_green(),
+        beacon_id.bright_green(),
+        format!("(destination: {})", remote_path).green());
     
     // Create upload command
     let command = Command::Upload {

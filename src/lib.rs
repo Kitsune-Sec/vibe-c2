@@ -34,7 +34,7 @@ pub struct CommandResponse {
 pub enum CommandResult {
     Success(String),
     Error(String),
-    FileData(String), // base64 encoded file data
+    FileData(serde_json::Map<String, serde_json::Value>), // Map containing file data and metadata
 }
 
 /// Task assigned to a beacon
@@ -55,8 +55,10 @@ pub struct BeaconInfo {
     pub os: String,
     pub ip: String,
     pub sleep_time: Duration,
+    pub jitter_percent: u8,
     pub last_check_in: Option<u64>,
     pub terminated: bool,
+    pub stale: bool,
 }
 
 /// Beacon registration message
@@ -77,6 +79,7 @@ pub mod routes {
     pub const BEACONS: &str = "/beacons";
     pub const GET_RESPONSES: &str = "/get_responses";
     pub const COMMAND_OUTPUT: &str = "/command_output";
+    pub const UPDATE_CONFIG: &str = "/update_config";
 }
 
 /// Generate a random ID string
