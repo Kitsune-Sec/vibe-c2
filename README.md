@@ -25,7 +25,7 @@ Vibe C2 consists of three primary components, each engineered for performance an
 
 ```
 ┌───────────────┐       ┌─────────────┐       ┌─────────────┐
-│    Operator   │◄─────►│  Team Server │◄─────►│   Beacons   │
+│    Operator   │◄─────►│  Team Server│◄─────►│   Beacons   │
 │    Console    │       │             │       │             │
 └───────────────┘       └─────────────┘       └─────────────┘
 ```
